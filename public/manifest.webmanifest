@@ -1,6 +1,6 @@
 {
   "id": "/OpenWeatherWeb/",
-  "name": "OpenWeatherWeb — погода в вашем городе",
+  "name": "OWW",
   "short_name": "OpenWeather",
   "description": "Поиск города и текущая погода. Установите приложение на телефон или компьютер.",
   "lang": "ru",
