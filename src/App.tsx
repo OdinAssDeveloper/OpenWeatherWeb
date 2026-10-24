@@ -1,3 +1,4 @@
+import PwaControls from './PwaControls'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { ApiError, cityName, findCities, getWeather, localTime, type City, type Weather } from './api'
 
@@ -75,7 +76,7 @@ export default function App() {
  const w = weather
  const sky = w?.weather[0]
  return <div className="app-shell">
-   <header className="topbar"><a className="brand" href="./" aria-label="OpenWeatherWeb, главная"><span className="brand-icon"><Icon name="sun" size={25}/></span><span>OpenWeather<span className="brand-web">WEB</span></span></a><div className="header-right"><span className="source"><i/> ДАННЫЕ OPENWEATHER</span><button className="key-button" onClick={openSettings}><Icon name="key" size={17}/>{key ? 'Ключ подключён' : 'Подключить API'}</button></div></header>
+   <header className="topbar"><a className="brand" href="./" aria-label="OpenWeatherWeb, главная"><span className="brand-icon"><Icon name="sun" size={25}/></span><span>OpenWeather<span className="brand-web">WEB</span></span></a><div className="header-right"><PwaControls/><span className="source"><i/> ДАННЫЕ OPENWEATHER</span><button className="key-button" onClick={openSettings}><Icon name="key" size={17}/>{key ? 'Ключ подключён' : 'Подключить API'}</button></div></header>
    <main>
      <section className="intro"><div><div className="eyebrow"><span/> Погода без лишних слов</div><h1>Любой город.<br/><span>Ваша погода.</span></h1><p>От знакомых улиц до следующего путешествия.<br className="desktop-break"/> Узнайте, что происходит за окном — где угодно.</p></div><div className="intro-side"><span className="edition">01 / ТЕКУЩАЯ ПОГОДА</span><div className="coordinates">55°45′ N <span>•</span> 49°07′ E</div><small>Отправная точка — Казань</small></div></section>
      <form className="search-form" onSubmit={search}><label htmlFor="city" className="search-label"><Icon name="search"/><span className="sr-only">Название города</span></label><input id="city" name="city" value={query} onChange={e => setQuery(e.target.value)} placeholder="Введите город, например Казань" maxLength={120} autoComplete="off" required/><span className="search-hint">Город или город,страна</span><button className="primary" disabled={busy}>{busy ? <><span className="spinner"/> Поиск…</> : <>Найти <Icon name="arrow" size={19}/></>}</button></form>

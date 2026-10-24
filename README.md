@@ -38,3 +38,11 @@ secret-tool store --label="OpenWeatherWeb OpenWeather" project OpenWeatherWeb se
 ## GitHub Pages
 
 Workflow .github/workflows/deploy.yml запускает тесты, TypeScript и production-сборку, затем публикует dist. В Settings → Pages выбран источник GitHub Actions. Для пути репозитория установлен Vite base /OpenWeatherWeb/. Последующие push в main автоматически обновляют сайт.
+
+## Установка как PWA
+
+Откройте сайт по HTTPS и нажмите «Установить». В Chrome/Edge при доступности появится системный запрос; в остальных случаях приложение покажет инструкцию. На iPhone/iPad откройте Safari → «Поделиться» → «На экран Домой». На Android используйте меню Chrome → «Установить приложение». На компьютере используйте значок установки в адресной строке Chrome/Edge. Доступность зависит от браузера.
+
+После первого успешного открытия production-версии service worker сохраняет только оболочку приложения (HTML, JavaScript, CSS, manifest, иконки). Интерфейс и демонстрационный режим открываются без интернета. Свежая погода требует подключения к OpenWeather; ответы API, URL с параметрами и ключи не записываются в Cache Storage. Внешний шрифт офлайн заменяется системным.
+
+Ключ остаётся в памяти сеанса и после перезапуска PWA вводится заново. При появлении новой версии нажмите «Обновить» в уведомлении. Путь и область service worker ограничены /OpenWeatherWeb/, кэши других приложений не удаляются. В npm run dev service worker не регистрируется. npm run build генерирует версию кэша по содержимому сборки; npm run preview позволяет проверить production PWA локально.
