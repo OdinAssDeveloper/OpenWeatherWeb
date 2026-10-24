@@ -10,7 +10,7 @@ function worker() {
  const fetch = vi.fn().mockResolvedValue(new Response('network'))
  const self = { registration: { scope }, location: { origin }, clients: { claim: vi.fn().mockResolvedValue(undefined) }, skipWaiting: vi.fn(), addEventListener: (name, handler) => { handlers[name] = handler } }
  const source = readFileSync(new URL('../scripts/sw-template.js', import.meta.url), 'utf8').replace('__VERSION__', 'test').replace('__PRECACHE__', JSON.stringify(['index.html', 'assets/app.js', 'manifest.webmanifest']))
- vm.runInNewContext(source, { self, caches, fetch, URL, Set, Promise })
+ vm.runInNewContext(source, { self, caches, fetch, URL, Set, Promise, Request })
  return { handlers, cache, caches, fetch, self }
 }
 describe('PWA caching boundaries', () => {
@@ -33,7 +33,9 @@ describe('PWA caching boundaries', () => {
  it('precaches only the application asset inventory', async () => {
    const { handlers, cache } = worker(); let completion
    handlers.install({ waitUntil: promise => { completion = promise } }); await completion
-   expect(cache.addAll).toHaveBeenCalledWith([scope + 'index.html', scope + 'assets/app.js', scope + 'manifest.webmanifest'])
+   const requests = cache.addAll.mock.calls[0][0]
+   expect(requests.map(request => request.url)).toEqual([scope + 'index.html', scope + 'assets/app.js', scope + 'manifest.webmanifest'])
+   expect(requests.every(request => request.cache === 'reload')).toBe(true)
  })
  it('removes only old caches belonging to this application', async () => {
    const { handlers, caches, self } = worker(); let completion

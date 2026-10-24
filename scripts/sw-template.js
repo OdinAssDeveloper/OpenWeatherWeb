@@ -7,7 +7,7 @@ const shellUrl = new URL('index.html', scopeUrl).href;
 const allowedUrls = new Set(PRECACHE.map(path => new URL(path, scopeUrl).href));
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll([...allowedUrls])));
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll([...allowedUrls].map(url => new Request(url, { cache: 'reload' })))));
 });
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
