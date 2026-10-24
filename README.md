@@ -1,6 +1,6 @@
 # OpenWeatherWeb
 
-SPA на React + TypeScript + Vite, созданное на основе [Test_proj](https://github.com/OdinAssDeveloper/Test_proj).
+SPA на React + TypeScript + Vite
 
 Сайт: https://odinassdeveloper.github.io/OpenWeatherWeb/
 
