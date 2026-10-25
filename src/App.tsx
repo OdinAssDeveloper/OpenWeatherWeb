@@ -28,8 +28,8 @@ function Metric({ icon, label, value, detail }: { icon: IconName; label: string;
 }
 
 type WeatherState = { loading: boolean; weather?: Weather; error?: string }
-function WeatherCard({ city: selected, apiKey, onRemove, onSettings }: {
- city: City; apiKey: string; onRemove(): void; onSettings(): void;
+function WeatherCard({ city: selected, apiKey, isActive, onRemove, onSettings }: {
+ city: City; apiKey: string; isActive: boolean; onRemove(): void; onSettings(): void;
 }) {
  const [state, setState] = useState<WeatherState>({ loading: true })
  const [revision, setRevision] = useState(0)
@@ -48,8 +48,8 @@ function WeatherCard({ city: selected, apiKey, onRemove, onSettings }: {
  }, [selected.lat, selected.lon, apiKey, revision])
  const w = state.weather
  const sky = w?.weather[0]
- return <section className="weather-section saved-city" aria-label={'Погода: ' + cityName(selected)}>
-   <div className="section-heading"><h2><Icon name="pin" size={17}/>{cityName(selected)} <span>{selected.country}</span></h2>
+ return <section className="weather-section saved-city" data-active={isActive} aria-label={'Погода: ' + cityName(selected)}>
+   <div className="section-heading"><h2><Icon name="pin" size={17}/><span className="city-name" title={cityName(selected)}>{cityName(selected)}</span> <span>{selected.country}</span></h2>
      <div className="city-actions"><button className="text-button" onClick={() => setRevision(value => value + 1)} disabled={state.loading || !apiKey} aria-label={'Обновить погоду: ' + cityName(selected)}><Icon name="refresh" size={16}/> Обновить</button><button className="icon-button" onClick={onRemove} aria-label={'Удалить город: ' + cityName(selected)}><Icon name="close" size={18}/></button></div>
    </div>
    <p className="city-location">{[selected.state, selected.country].filter(Boolean).join(', ')}</p>
@@ -62,6 +62,8 @@ function WeatherCard({ city: selected, apiKey, onRemove, onSettings }: {
 
 export default function App() {
  const [cities, setCities] = useState(readSavedCities)
+ const [selectedCityId, setSelectedCityId] = useState('')
+ const activeCityId = cities.some(city => cityId(city) === selectedCityId) ? selectedCityId : cities[0] ? cityId(cities[0]) : ''
  const [key, setKey] = useState(readSavedApiKey)
  const [settings, setSettings] = useState(false)
  const [draftKey, setDraftKey] = useState('')
@@ -123,7 +125,7 @@ export default function App() {
    const next = [...saved, city]
    try { saveCities(next) }
    catch (e) { setError(e instanceof Error ? e.message : 'Не удалось сохранить город.'); return }
-   setCities(next); setPageError(''); setNote(''); closeSearch()
+   setCities(next); setSelectedCityId(cityId(city)); setPageError(''); setNote(''); closeSearch()
  }
  function removeCity() {
    if (!pendingRemoval) return
@@ -137,7 +139,7 @@ export default function App() {
    try { saveApiKey(draftKey) }
    catch (error) { setStorageError(error instanceof Error ? error.message : 'Не удалось сохранить ключ.'); return }
    setKey(draftKey.trim()); setDraftKey(''); setStorageError(''); setSettings(false)
-   setNote('Ключ подключён. Погода для сохранённых городов загружается автоматически.'); setError('')
+   setNote('Ключ подключён. Погода обновляется автоматически.'); setError('')
  }
  function forgetKey() {
    try { removeSavedApiKey() }
@@ -150,10 +152,10 @@ export default function App() {
    <header className="topbar"><a className="brand" href="./" aria-label="OpenWeatherWeb, главная"><span className="brand-icon"><Icon name="sun" size={25}/></span><span>OpenWeather<span className="brand-web">WEB</span></span></a><div className="header-right"><PwaControls/><span className="source"><i/> ДАННЫЕ OPENWEATHER</span><button className="key-button" onClick={openSettings}><Icon name="key" size={17}/>{key ? 'Ключ подключён' : 'Подключить API'}</button></div></header>
    <main>
      <section className="intro"><div><div className="eyebrow"><span/> Погода без лишних слов</div><h1>Ваши города.<br/><span>Ваша погода.</span></h1><p>Сохраните места, которые вам важны.<br/>При каждом открытии мы обновим для них погоду.</p></div><div className="intro-side"><span className="edition">ТЕКУЩАЯ ПОГОДА</span><div className="coordinates">{cities.length}</div><small>городов в вашем списке</small></div></section>
-     <div className="cities-toolbar"><h2>Мои города <span>{cities.length}</span></h2><button className="primary" onClick={openSearch}><span aria-hidden="true">＋</span> Добавить город</button></div>
-     <div aria-live="polite">{pageError && <div className="message error" role="alert">{pageError}</div>}{note && <div className="message">{note}</div>}</div>
+     <div className="cities-toolbar"><h2>Мои города <span>{cities.length}</span></h2><label className="mobile-city-picker"><span>Мои города · {cities.length}</span><select aria-label="Выбрать сохранённый город" value={activeCityId} disabled={!cities.length} onChange={event => setSelectedCityId(event.target.value)}>{!cities.length && <option value="">Нет городов</option>}{cities.map(city => <option key={cityId(city)} value={cityId(city)}>{cityName(city)} · {[city.state, city.country].filter(Boolean).join(", ")}</option>)}</select></label><button className="primary" onClick={openSearch}><span aria-hidden="true">＋</span> Добавить город</button></div>
+     <div className="main-feedback" aria-live="polite">{pageError && <div className="message error" role="alert">{pageError}</div>}{note && <div className="message">{note}</div>}</div>
      {!cities.length && <section className="empty-state"><div className="empty-art"><span className="orbit one"/><span className="orbit two"/><Icon name="sun" size={76}/><span className="art-dot"/></div><div className="empty-copy"><span className="eyebrow">ВАШ ЛИЧНЫЙ СПИСОК</span><h2>Какая погода<br/>в ваших городах?</h2><p>Добавьте первый город. Он останется в списке<br/>после перезапуска приложения или вкладки.</p><button className="outline-button" onClick={openSearch}>Добавить город<Icon name="arrow" size={18}/></button></div></section>}
-     {cities.map(city => <WeatherCard key={cityId(city)} city={city} apiKey={key} onRemove={() => setPendingRemoval(city)} onSettings={openSettings}/>)}
+     {cities.map(city => <WeatherCard key={cityId(city)} city={city} apiKey={key} isActive={cityId(city) === activeCityId} onRemove={() => setPendingRemoval(city)} onSettings={openSettings}/>)}
      <div className="privacy-note"><Icon name="key" size={16}/><p>Города и ключ сохраняются в этом браузере. Для свежей погоды нужен интернет.</p><span>ХРАНИТСЯ В ВАШЕМ БРАУЗЕРЕ</span></div>
    </main>
    <footer><span>OpenWeatherWeb <span className="footer-dot">/</span> React + TypeScript</span><a href="https://openweathermap.org/" target="_blank" rel="noreferrer">Данные OpenWeather ↗</a></footer>

@@ -10,3 +10,129 @@
 
 /* Saved locations */
 .cities-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:8px 0 26px}.cities-toolbar h2{font-size:20px;font-weight:500;margin:0}.cities-toolbar h2 span{font-size:12px;color:#a8b59a;margin-left:8px}.saved-city{border-top:1px solid #344331;padding:8px 0 28px}.city-actions{display:flex;gap:16px;align-items:center}.city-actions .text-button{display:flex;gap:6px;align-items:center}.city-location,.weather-updated{font-size:10px;color:#9cab95;margin:0 0 12px}.city-loading{display:flex;align-items:center;gap:10px;padding:28px 0;color:#a8b59a;font-size:13px}.city-loading .spinner{border-top-color:#c5f47b}.search-dialog{max-width:600px;max-height:calc(100dvh - 40px);overflow:auto}.search-dialog .search-form{margin-bottom:20px;height:62px}.search-dialog .search-form input{width:auto;min-width:0;padding:8px 4px;background:none;border:0}.search-dialog .city-results{padding:5px 12px 14px}.search-dialog .city-results p{margin-bottom:12px}.removal-actions{display:flex;justify-content:flex-end;gap:12px}.search-dialog .city-grid small{overflow-wrap:anywhere}@media(max-width:500px){.cities-toolbar h2{font-size:17px}.cities-toolbar .primary{gap:6px;padding:12px}.saved-city .section-heading{align-items:center}.city-actions{gap:10px}.city-actions .text-button{font-size:9px}.search-dialog{padding:22px 16px}.removal-actions{flex-wrap:wrap}}
+
+/* Keep every city mounted so switching on mobile does not repeat API requests. */
+.mobile-city-picker{display:none}
+.section-heading h2>.city-name{font:inherit;border:0;padding:0;color:inherit}
+
+/* A phone shows one complete city at a time; the document itself stays natural
+   (no overflow lock or clipped weather) and dialogs can scroll independently. */
+@media(max-width:650px), (max-width:1000px) and (max-height:500px){
+  .app-shell{
+    height:100vh;height:100dvh;
+    padding:env(safe-area-inset-top) max(14px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));
+    display:flex;flex-direction:column;
+  }
+  .topbar{height:auto;min-height:52px;flex-shrink:0;flex-wrap:wrap;gap:4px;padding:8px 0}
+  .topbar .brand{margin-right:auto;font-size:15px;gap:7px}
+  .topbar .brand-icon{width:28px;height:28px}
+  .topbar .brand-web{display:none}
+  .header-right{display:contents}
+  .topbar .source{display:none}
+  .topbar .install-button,.topbar .key-button{font-size:10px;padding:9px 8px;margin-left:4px;min-height:34px}
+  .topbar .install-button svg,.topbar .key-button svg{display:none}
+  .pwa-notice{position:static;order:1;transform:none;width:100%;margin-top:4px;padding:8px 10px;font-size:10px;box-shadow:none}
+  .pwa-notice>div{gap:10px}
+  .pwa-notice button{font-size:10px;padding:8px}
+  .app-shell>main{flex:1;min-height:0;display:flex;flex-direction:column}
+  .intro,.privacy-note,.app-shell>footer{display:none}
+  .cities-toolbar{flex-shrink:0;gap:10px;margin:10px 0}
+  .cities-toolbar>h2{display:none}
+  .mobile-city-picker{display:flex;flex-direction:column;flex:1;min-width:0;gap:1px}
+  .mobile-city-picker>span{font-size:10px;color:#9cab95}
+  .mobile-city-picker select{width:100%;min-width:0;min-height:32px;padding:0 20px 0 0;border:0;border-radius:0;color:#e8ede9;background:#111714;font:600 16px/1.3 Manrope,system-ui,sans-serif;text-overflow:ellipsis}
+  .mobile-city-picker select:focus-visible{outline:2px solid #c5f47b;outline-offset:2px}
+  .cities-toolbar .primary{min-height:40px;min-width:0;font-size:11px;padding:10px 12px;gap:6px}
+  .main-feedback .message{margin:0 0 6px;padding:8px 10px;font-size:11px}
+  .saved-city[data-active="false"]{display:none}
+  .saved-city[data-active="true"]{flex:1;min-height:0;display:grid;grid-template-rows:auto auto auto auto minmax(0,1fr) auto;padding:0;gap:0}
+  .saved-city .section-heading{min-width:0;margin:5px 0 0;gap:8px;min-height:36px}
+  .saved-city .section-heading h2{flex:1;min-width:0;flex-wrap:nowrap;gap:6px;font-size:15px}
+  .saved-city .section-heading h2>svg,.saved-city .section-heading h2>span:last-child{flex-shrink:0}
+  .saved-city .city-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .city-actions{flex-shrink:0;gap:4px}
+  .city-actions .text-button{min-height:36px;padding:6px;font-size:10px;gap:4px}
+  .city-actions .icon-button{min-width:36px;min-height:36px;display:grid;place-items:center}
+  .city-location{font-size:10px;line-height:1.3;margin:0 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .weather-updated{font-size:10px;line-height:1.3;margin:0 0 7px}
+  .saved-city .message{font-size:12px;margin:8px 0;padding:12px}
+  .weather-layout{min-height:0;grid-template-columns:1fr;grid-template-rows:minmax(0,1.15fr) minmax(0,1fr);gap:8px}
+  .weather-main{min-height:0;padding:12px 14px;display:flex;flex-direction:column}
+  .weather-title{gap:8px;flex-shrink:0}
+  .weather-title>span:first-child{font-size:10px}
+  .weather-title>span:last-child{font-size:8px;letter-spacing:0}
+  .temperature{flex:1;min-height:0;gap:8px}
+  .temperature>strong{font-size:clamp(52px,10dvh,90px);letter-spacing:-3px}
+  .temperature sup{font-size:.6em}
+  .weather-symbol{margin:0}
+  .weather-symbol svg{width:clamp(50px,9dvh,80px);height:clamp(50px,9dvh,80px)}
+  .weather-main h3{flex-shrink:0;font-size:clamp(15px,2.5dvh,20px);line-height:1.2;margin:0 0 5px;overflow-wrap:anywhere}
+  .weather-main>p{flex-shrink:0;font-size:10px;line-height:1.4;margin:0}
+  .weather-main-bottom{display:none}
+  .metrics-grid{min-height:0;gap:8px;grid-template-rows:repeat(2,minmax(0,1fr))}
+  .metric{min-width:0;min-height:0;padding:8px 10px;justify-content:center}
+  .metric-head{font-size:11px;gap:6px}
+  .metric-head svg{width:16px;height:16px}
+  .metric strong{font-size:clamp(18px,3.2dvh,25px);line-height:1.2;margin-top:3px;letter-spacing:-.4px}
+  .metric small{font-size:9px;line-height:1.3;margin-top:3px}
+  .sun-strip{margin:8px 0 0;padding:8px 12px;gap:12px;flex-wrap:nowrap}
+  .sun-strip>div:not(.sun-path){gap:7px;flex-shrink:0}
+  .sun-strip small{font-size:10px;line-height:1.2}
+  .sun-strip strong{font-size:18px;line-height:1.3}
+  .sun-strip svg{width:21px;height:21px}
+  .sun-path{min-width:15px;gap:5px}
+  .sun-path svg{width:15px;height:15px}
+  .sun-strip>p{display:none}
+  .empty-state{flex:1;min-height:0;margin:0;justify-content:center}
+  .empty-art{flex:0 1 140px;min-height:90px;margin:0}
+  .empty-art .orbit.one{width:95px;height:95px}
+  .empty-art .orbit.two{width:130px;height:130px}
+  .empty-art>svg{width:50px;height:50px}
+  .empty-art .art-dot{left:calc(50% + 48px)}
+  .empty-copy{padding:12px 20px 20px}
+  .empty-copy h2{font-size:24px;margin:10px 0}
+  .empty-copy p{margin:8px 0 16px}
+  dialog{max-height:calc(100dvh - 24px);overflow:auto;overscroll-behavior:contain}
+  dialog input{font-size:16px}
+  .search-dialog .search-form input{font-size:16px}
+}
+
+@media(max-width:650px) and (max-height:650px){
+  .topbar{min-height:46px;padding:5px 0}
+  .cities-toolbar{margin:6px 0}
+  .saved-city .section-heading{margin-top:2px;min-height:32px}
+  .weather-main{padding:8px 12px}
+  .weather-main h3{font-size:15px;margin-bottom:3px}
+  .metric{padding:6px 9px}
+  .metric small{font-size:8px;margin-top:2px}
+  .sun-strip{padding:6px 10px}
+}
+
+@media(max-width:1000px) and (max-height:500px){
+  .topbar{min-height:40px;padding:3px 0}
+  .cities-toolbar{margin:4px 0}
+  .mobile-city-picker{flex-direction:row;align-items:center;gap:12px}
+  .mobile-city-picker>span{white-space:nowrap}
+  .mobile-city-picker select{width:auto;flex:1}
+  .cities-toolbar .primary{min-height:34px;padding:7px 12px}
+  .saved-city .section-heading{min-height:30px;margin:0}
+  .city-location{display:none}
+  .saved-city[data-active="true"]{grid-template-rows:auto auto auto minmax(0,1fr) auto}
+  .weather-updated{margin-bottom:4px}
+  .weather-layout{grid-template-columns:1fr 1fr;grid-template-rows:minmax(0,1fr)}
+  .weather-main{padding:8px 12px}
+  .temperature>strong{font-size:56px}
+  .weather-main h3{font-size:15px;margin-bottom:3px}
+  .metric{padding:5px 8px}
+  .metric strong{font-size:19px;margin-top:2px}
+  .metric small{font-size:8px;margin-top:1px}
+  .sun-strip{padding:5px 12px;margin-top:6px}
+  .sun-strip strong{font-size:16px}
+  .empty-state{flex-direction:row}
+}
+
+@media(max-width:350px){
+  .topbar .brand{font-size:13px;gap:5px}
+  .topbar .brand-icon{width:24px;height:24px}
+  .topbar .install-button,.topbar .key-button{font-size:9px;padding:8px 6px;margin-left:2px}
+}
