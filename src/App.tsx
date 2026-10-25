@@ -1,4 +1,5 @@
 import { API_KEY_STORAGE_KEY, readSavedApiKey, saveApiKey, removeSavedApiKey } from './keyStorage'
+import { CITIES_STORAGE_KEY, cityId, readSavedCities, saveCities } from './cityStorage'
 import PwaControls from './PwaControls'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { ApiError, cityName, findCities, getWeather, localTime, type City, type Weather } from './api'
@@ -21,98 +22,149 @@ function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
  }
  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
 }
-const demoCity: City = { name: 'Kazan', local_names: { ru: 'Казань' }, lat: 55.7887, lon: 49.1221, country: 'RU', state: 'Татарстан' }
-const demoWeather: Weather = { name: 'Казань', dt: 1729760400, timezone: 10800, weather: [{ id: 800, main: 'Clear', description: 'ясно', icon: '01d' }], main: { temp: 14, feels_like: 12, temp_min: 11, temp_max: 16, humidity: 64, pressure: 1018 }, wind: { speed: 3.2, deg: 225 }, clouds: { all: 5 }, visibility: 10000, sys: { country: 'RU', sunrise: 1729739700, sunset: 1729776000 } }
 const directions = ['С', 'СВ', 'В', 'ЮВ', 'Ю', 'ЮЗ', 'З', 'СЗ']
 function Metric({ icon, label, value, detail }: { icon: IconName; label: string; value: string; detail?: string }) {
  return <article className="metric"><div className="metric-head"><span>{label}</span><Icon name={icon}/></div><strong>{value}</strong><small>{detail || 'По данным OpenWeather'}</small></article>
 }
+
+type WeatherState = { loading: boolean; weather?: Weather; error?: string }
+function WeatherCard({ city: selected, apiKey, onRemove, onSettings }: {
+ city: City; apiKey: string; onRemove(): void; onSettings(): void;
+}) {
+ const [state, setState] = useState<WeatherState>({ loading: true })
+ const [revision, setRevision] = useState(0)
+ useEffect(() => {
+   if (!apiKey) { setState({ loading: false }); return }
+   const controller = new AbortController()
+   let active = true
+   const timer = window.setTimeout(() => controller.abort(), 20000)
+   setState({ loading: true })
+   getWeather(selected, apiKey, controller.signal).then(weather => {
+     if (active) setState({ loading: false, weather })
+   }).catch(error => {
+     if (active) setState({ loading: false, error: error instanceof ApiError ? error.message : 'Запрос прерван или сервис не ответил вовремя. Попробуйте ещё раз.' })
+   }).finally(() => window.clearTimeout(timer))
+   return () => { active = false; controller.abort(); window.clearTimeout(timer) }
+ }, [selected.lat, selected.lon, apiKey, revision])
+ const w = state.weather
+ const sky = w?.weather[0]
+ return <section className="weather-section saved-city" aria-label={'Погода: ' + cityName(selected)}>
+   <div className="section-heading"><h2><Icon name="pin" size={17}/>{cityName(selected)} <span>{selected.country}</span></h2>
+     <div className="city-actions"><button className="text-button" onClick={() => setRevision(value => value + 1)} disabled={state.loading || !apiKey} aria-label={'Обновить погоду: ' + cityName(selected)}><Icon name="refresh" size={16}/> Обновить</button><button className="icon-button" onClick={onRemove} aria-label={'Удалить город: ' + cityName(selected)}><Icon name="close" size={18}/></button></div>
+   </div>
+   <p className="city-location">{[selected.state, selected.country].filter(Boolean).join(', ')}</p>
+   <div aria-live="polite">
+     {!apiKey ? <div className="message">Подключите ключ OpenWeather для загрузки погоды.<button onClick={onSettings}>Подключить API</button></div> : state.loading ? <div className="city-loading"><span className="spinner"/> Обновляем погоду…</div> : state.error ? <div className="message error" role="alert">{state.error}<button onClick={() => setRevision(value => value + 1)}>Повторить</button>{state.error.includes('Ключ') && <button onClick={onSettings}>Изменить ключ</button>}</div> : null}
+   </div>
+   {w && <><p className="weather-updated">Обновлено в {localTime(w.dt, w.timezone)} · местное время</p><div className="weather-layout"><article className="weather-main"><div className="weather-title"><span>Сейчас в городе</span><span>{Math.abs(selected.lat).toFixed(2)}° {selected.lat < 0 ? 'S' : 'N'} / {Math.abs(selected.lon).toFixed(2)}° {selected.lon < 0 ? 'W' : 'E'}</span></div><div className="temperature"><strong>{Math.round(w.main.temp)}<sup>°</sup></strong><div className={'weather-symbol ' + (sky?.id === 800 ? 'clear' : '')}><Icon name={sky?.id === 800 ? 'sun' : 'cloud'} size={112}/></div></div><h3>{sky?.description}</h3><p>Ощущается как {Math.round(w.main.feels_like)}° <span>·</span> от {Math.round(w.main.temp_min)}° до {Math.round(w.main.temp_max)}°</p><div className="weather-main-bottom"><span><i/>Текущие наблюдения</span><span>°C / МЕТРИЧЕСКАЯ СИСТЕМА</span></div></article><div className="metrics-grid"><Metric icon="wind" label="Ветер" value={w.wind.speed + ' м/с'} detail={'Направление ' + directions[Math.round(w.wind.deg / 45) % 8]}/><Metric icon="drop" label="Влажность" value={w.main.humidity + '%'} detail="Относительная влажность"/><Metric icon="gauge" label="Давление" value={w.main.pressure + ' гПа'} detail="Атмосферное давление"/><Metric icon="eye" label="Видимость" value={Number.isFinite(w.visibility) ? (w.visibility / 1000).toLocaleString('ru-RU') + ' км' : '—'} detail={'Облачность ' + w.clouds.all + '%'}/></div></div><div className="sun-strip"><div><span className="sun-icon"><Icon name="rise" size={26}/></span><span><small>Восход</small><strong>{localTime(w.sys.sunrise, w.timezone)}</strong></span></div><div className="sun-path"><span/><Icon name="sun" size={19}/><span/></div><div><span className="sun-icon"><Icon name="set" size={26}/></span><span><small>Закат</small><strong>{localTime(w.sys.sunset, w.timezone)}</strong></span></div><p>Местное время<br/><span>в выбранном городе</span></p></div></>}
+ </section>
+}
+
 export default function App() {
- const [query, setQuery] = useState('')
+ const [cities, setCities] = useState(readSavedCities)
  const [key, setKey] = useState(readSavedApiKey)
- const [storageError, setStorageError] = useState('')
- const [draftKey, setDraftKey] = useState('')
  const [settings, setSettings] = useState(false)
+ const [draftKey, setDraftKey] = useState('')
+ const [storageError, setStorageError] = useState('')
+ const [pageError, setPageError] = useState('')
+ const [note, setNote] = useState('')
+ const [adding, setAdding] = useState(false)
+ const [query, setQuery] = useState('')
  const [results, setResults] = useState<City[]>([])
- const [selected, setSelected] = useState<City | null>(null)
- const [weather, setWeather] = useState<Weather | null>(null)
- const [demo, setDemo] = useState(false)
  const [busy, setBusy] = useState(false)
  const [error, setError] = useState('')
- const [note, setNote] = useState('')
+ const [pendingRemoval, setPendingRemoval] = useState<City | null>(null)
+ const keyDialog = useRef<HTMLDialogElement>(null)
+ const searchDialog = useRef<HTMLDialogElement>(null)
+ const removalDialog = useRef<HTMLDialogElement>(null)
  const controller = useRef<AbortController | null>(null)
- const dialog = useRef<HTMLDialogElement>(null)
  const requestId = useRef(0)
- useEffect(() => { if (settings) dialog.current?.showModal(); else dialog.current?.close() }, [settings])
+ useEffect(() => { if (settings) keyDialog.current?.showModal(); else keyDialog.current?.close() }, [settings])
+ useEffect(() => { if (adding) searchDialog.current?.showModal(); else searchDialog.current?.close() }, [adding])
+ useEffect(() => { if (pendingRemoval) removalDialog.current?.showModal(); else removalDialog.current?.close() }, [pendingRemoval])
  useEffect(() => () => controller.current?.abort(), [])
  useEffect(() => {
-   const syncKey = (event: StorageEvent) => {
-     if (event.key !== API_KEY_STORAGE_KEY && event.key !== null) return
-     controller.current?.abort(); ++requestId.current; setBusy(false); setResults([])
-     setKey(readSavedApiKey()); setDraftKey(''); setSettings(false); setStorageError('')
-     setNote('Настройки ключа изменены в другой вкладке.'); setError('')
+   const sync = (event: StorageEvent) => {
+     if (event.key === CITIES_STORAGE_KEY || event.key === null) setCities(readSavedCities())
+     if (event.key === API_KEY_STORAGE_KEY || event.key === null) {
+       controller.current?.abort(); ++requestId.current; setBusy(false); setResults([])
+       setKey(readSavedApiKey()); setDraftKey(''); setSettings(false); setStorageError('')
+     }
    }
-   window.addEventListener('storage', syncKey)
-   return () => window.removeEventListener('storage', syncKey)
+   window.addEventListener('storage', sync)
+   return () => window.removeEventListener('storage', sync)
  }, [])
  function openSettings() { setStorageError(''); setDraftKey(key); setSettings(true) }
- function startRequest() {
-   controller.current?.abort(); const abort = new AbortController(); controller.current = abort;
-   const id = ++requestId.current; const timer = window.setTimeout(() => abort.abort(), 20000);
-   setBusy(true); setError(''); setNote(''); return { abort, id, timer }
+ function closeSearch() { controller.current?.abort(); ++requestId.current; setBusy(false); setAdding(false) }
+ function openSearch() {
+   if (!key) { setNote('Сначала подключите ключ OpenWeather, затем добавьте город.'); openSettings(); return }
+   setQuery(''); setResults([]); setError(''); setAdding(true)
  }
  async function search(event: FormEvent) {
    event.preventDefault()
    if (!query.trim()) { setError('Введите название города.'); return }
-   if (!key) { openSettings(); setNote('Сначала подключите личный ключ OpenWeather.'); return }
-   const { abort, id, timer } = startRequest(); setResults([]); setWeather(null); setSelected(null); setDemo(false)
+   if (!key) { setError('Для поиска подключите ключ OpenWeather.'); return }
+   controller.current?.abort()
+   const abort = new AbortController(); controller.current = abort
+   const id = ++requestId.current
+   const timer = window.setTimeout(() => abort.abort(), 20000)
+   setBusy(true); setError(''); setResults([])
    try {
-     const cities = await findCities(query, key, abort.signal)
+     const found = await findCities(query, key, abort.signal)
      if (id !== requestId.current) return
-     if (!cities.length) { setNote('Город не найден. Проверьте название или уточните страну, например: London,GB.'); return }
-     if (cities.length > 1) { setResults(cities); return }
-     const data = await getWeather(cities[0], key, abort.signal)
-     if (id === requestId.current) { setSelected(cities[0]); setWeather(data) }
-   } catch (e) { if (id === requestId.current) setError(e instanceof ApiError ? e.message : 'Запрос прерван или сервис не ответил вовремя. Повторите поиск.') }
-   finally { clearTimeout(timer); if (id === requestId.current) setBusy(false) }
+     setResults(found)
+     if (!found.length) setError('Город не найден. Уточните название или страну, например: London,GB.')
+   } catch (e) { if (id === requestId.current) setError(e instanceof ApiError ? e.message : 'Сервис не ответил вовремя. Повторите поиск.') }
+   finally { window.clearTimeout(timer); if (id === requestId.current) setBusy(false) }
  }
- async function selectCity(city: City) {
-   const { abort, id, timer } = startRequest()
-   try { const data = await getWeather(city, key, abort.signal); if (id === requestId.current) { setSelected(city); setWeather(data); setResults([]); setDemo(false) } }
-   catch (e) { if (id === requestId.current) setError(e instanceof ApiError ? e.message : 'Не удалось завершить запрос. Попробуйте ещё раз.') }
-   finally { clearTimeout(timer); if (id === requestId.current) setBusy(false) }
+ function addCity(city: City) {
+   const saved = readSavedCities()
+   if (saved.some(item => cityId(item) === cityId(city))) { setCities(saved); setError('Этот город уже добавлен.'); return }
+   const next = [...saved, city]
+   try { saveCities(next) }
+   catch (e) { setError(e instanceof Error ? e.message : 'Не удалось сохранить город.'); return }
+   setCities(next); setPageError(''); setNote(''); closeSearch()
  }
- function showDemo() { controller.current?.abort(); ++requestId.current; setBusy(false); setDemo(true); setSelected(demoCity); setWeather(demoWeather); setResults([]); setError(''); setNote('') }
+ function removeCity() {
+   if (!pendingRemoval) return
+   const next = readSavedCities().filter(city => cityId(city) !== cityId(pendingRemoval))
+   try { saveCities(next) }
+   catch (e) { setPageError(e instanceof Error ? e.message : 'Не удалось сохранить список городов.'); setPendingRemoval(null); return }
+   setCities(next); setPendingRemoval(null); setPageError('')
+ }
  function saveKey(event: FormEvent) {
    event.preventDefault()
    try { saveApiKey(draftKey) }
    catch (error) { setStorageError(error instanceof Error ? error.message : 'Не удалось сохранить ключ.'); return }
-   controller.current?.abort(); ++requestId.current; setBusy(false); setResults([])
    setKey(draftKey.trim()); setDraftKey(''); setStorageError(''); setSettings(false)
-   setNote('Ключ подключён и сохранён в этом браузере. Введите город и нажмите «Найти».'); setError('')
+   setNote('Ключ подключён. Погода для сохранённых городов загружается автоматически.'); setError('')
  }
  function forgetKey() {
    try { removeSavedApiKey() }
    catch (error) { setStorageError(error instanceof Error ? error.message : 'Не удалось удалить ключ.'); return }
    controller.current?.abort(); ++requestId.current; setBusy(false); setKey(''); setDraftKey('')
-   setStorageError(''); setSettings(false); setResults([]); setError('')
-   setNote('Ключ удалён из памяти и локального хранилища этого браузера.')
+   setStorageError(''); setSettings(false); setResults([])
+   setNote('Ключ удалён. Список ваших городов сохранён.')
  }
- const w = weather
- const sky = w?.weather[0]
  return <div className="app-shell">
    <header className="topbar"><a className="brand" href="./" aria-label="OpenWeatherWeb, главная"><span className="brand-icon"><Icon name="sun" size={25}/></span><span>OpenWeather<span className="brand-web">WEB</span></span></a><div className="header-right"><PwaControls/><span className="source"><i/> ДАННЫЕ OPENWEATHER</span><button className="key-button" onClick={openSettings}><Icon name="key" size={17}/>{key ? 'Ключ подключён' : 'Подключить API'}</button></div></header>
    <main>
-     <section className="intro"><div><div className="eyebrow"><span/> Погода без лишних слов</div><h1>Любой город.<br/><span>Ваша погода.</span></h1><p>От знакомых улиц до следующего путешествия.<br className="desktop-break"/> Узнайте, что происходит за окном — где угодно.</p></div><div className="intro-side"><span className="edition">01 / ТЕКУЩАЯ ПОГОДА</span><div className="coordinates">55°45′ N <span>•</span> 49°07′ E</div><small>Отправная точка — Казань</small></div></section>
-     <form className="search-form" onSubmit={search}><label htmlFor="city" className="search-label"><Icon name="search"/><span className="sr-only">Название города</span></label><input id="city" name="city" value={query} onChange={e => setQuery(e.target.value)} placeholder="Введите город, например Казань" maxLength={120} autoComplete="off" required/><span className="search-hint">Город или город,страна</span><button className="primary" disabled={busy}>{busy ? <><span className="spinner"/> Поиск…</> : <>Найти <Icon name="arrow" size={19}/></>}</button></form>
-     <div className="search-meta"><span><Icon name="pin" size={14}/> Сначала проверим город, затем покажем погоду</span><button className="text-button" onClick={showDemo} disabled={busy}>Посмотреть пример <span>↗</span></button></div>
-     <div aria-live="polite" aria-atomic="true">{error && <div className="message error" role="alert">{error}{error.includes('Ключ') && <button onClick={openSettings}>Изменить ключ</button>}</div>}{note && <div className="message">{note}</div>}</div>
-     {results.length > 0 && <section className="city-results" aria-label="Найденные города"><div className="section-heading"><h2>Уточним место</h2><span>{results.length} вариантов</span></div><p>Есть несколько совпадений. Выберите нужный город.</p><div className="city-grid">{results.map((city, i) => <button key={city.lat + ':' + city.lon + ':' + i} disabled={busy} onClick={() => selectCity(city)}><Icon name="pin"/><span><strong>{cityName(city)}</strong><small>{[city.state, city.country].filter(Boolean).join(', ')}</small></span><Icon name="arrow" size={18}/></button>)}</div></section>}
-     {!w && results.length === 0 && <section className="empty-state"><div className="empty-art"><span className="orbit one"/><span className="orbit two"/><Icon name="sun" size={76}/><span className="art-dot"/></div><div className="empty-copy"><span className="eyebrow">МИР БЛИЖЕ, ЧЕМ КАЖЕТСЯ</span><h2>Какая погода<br/>в вашем городе?</h2><p>Начните с названия. Мы найдём точное место<br/>и соберём всё важное на одном экране.</p><button className="outline-button" onClick={key ? () => document.getElementById('city')?.focus() : openSettings}>{key ? 'Выбрать город' : 'Подключить ключ OpenWeather'}<Icon name="arrow" size={18}/></button></div><span className="empty-corner">СЕЙЧАС / В ЛЮБОЙ ТОЧКЕ МИРА</span></section>}
-     {w && selected && <section className="weather-section" aria-label="Текущая погода"><div className="section-heading"><h2><Icon name="pin" size={17}/>{cityName(selected)} <span>{selected.country}</span></h2><span className={demo ? 'demo-badge' : 'live-badge'}>{demo ? 'ПРИМЕР · НЕ ТЕКУЩИЕ ДАННЫЕ' : 'ОБНОВЛЕНО В ' + localTime(w.dt, w.timezone)}</span></div><div className="weather-layout"><article className="weather-main"><div className="weather-title"><span>Сейчас в городе</span><span>{Math.abs(selected.lat).toFixed(2)}° {selected.lat < 0 ? 'S' : 'N'} / {Math.abs(selected.lon).toFixed(2)}° {selected.lon < 0 ? 'W' : 'E'}</span></div><div className="temperature"><strong>{Math.round(w.main.temp)}<sup>°</sup></strong><div className={'weather-symbol ' + (sky?.id === 800 ? 'clear' : '')}><Icon name={sky?.id === 800 ? 'sun' : 'cloud'} size={112}/></div></div><h3>{sky?.description}</h3><p>Ощущается как {Math.round(w.main.feels_like)}° <span>·</span> от {Math.round(w.main.temp_min)}° до {Math.round(w.main.temp_max)}°</p><div className="weather-main-bottom"><span><i/>{demo ? 'Демонстрационные данные' : 'Текущие наблюдения'}</span><span>°C / МЕТРИЧЕСКАЯ СИСТЕМА</span></div></article><div className="metrics-grid"><Metric icon="wind" label="Ветер" value={w.wind.speed + ' м/с'} detail={'Направление ' + directions[Math.round(w.wind.deg / 45) % 8]}/><Metric icon="drop" label="Влажность" value={w.main.humidity + '%'} detail="Относительная влажность"/><Metric icon="gauge" label="Давление" value={w.main.pressure + ' гПа'} detail="Атмосферное давление"/><Metric icon="eye" label="Видимость" value={Number.isFinite(w.visibility) ? (w.visibility / 1000).toLocaleString('ru-RU') + ' км' : '—'} detail={'Облачность ' + w.clouds.all + '%'}/></div></div><div className="sun-strip"><div><span className="sun-icon"><Icon name="rise" size={26}/></span><span><small>Восход</small><strong>{localTime(w.sys.sunrise, w.timezone)}</strong></span></div><div className="sun-path"><span/><Icon name="sun" size={19}/><span/></div><div><span className="sun-icon"><Icon name="set" size={26}/></span><span><small>Закат</small><strong>{localTime(w.sys.sunset, w.timezone)}</strong></span></div><p>Местное время<br/><span>в выбранном городе</span></p></div></section>}
-     <div className="privacy-note"><Icon name="key" size={16}/><p>Ключ сохраняется в localStorage этого браузера до удаления в настройках приложения или очистки данных сайта.</p><span>ХРАНИТСЯ В ВАШЕМ БРАУЗЕРЕ</span></div>
+     <section className="intro"><div><div className="eyebrow"><span/> Погода без лишних слов</div><h1>Ваши города.<br/><span>Ваша погода.</span></h1><p>Сохраните места, которые вам важны.<br/>При каждом открытии мы обновим для них погоду.</p></div><div className="intro-side"><span className="edition">ТЕКУЩАЯ ПОГОДА</span><div className="coordinates">{cities.length}</div><small>городов в вашем списке</small></div></section>
+     <div className="cities-toolbar"><h2>Мои города <span>{cities.length}</span></h2><button className="primary" onClick={openSearch}><span aria-hidden="true">＋</span> Добавить город</button></div>
+     <div aria-live="polite">{pageError && <div className="message error" role="alert">{pageError}</div>}{note && <div className="message">{note}</div>}</div>
+     {!cities.length && <section className="empty-state"><div className="empty-art"><span className="orbit one"/><span className="orbit two"/><Icon name="sun" size={76}/><span className="art-dot"/></div><div className="empty-copy"><span className="eyebrow">ВАШ ЛИЧНЫЙ СПИСОК</span><h2>Какая погода<br/>в ваших городах?</h2><p>Добавьте первый город. Он останется в списке<br/>после перезапуска приложения или вкладки.</p><button className="outline-button" onClick={openSearch}>Добавить город<Icon name="arrow" size={18}/></button></div></section>}
+     {cities.map(city => <WeatherCard key={cityId(city)} city={city} apiKey={key} onRemove={() => setPendingRemoval(city)} onSettings={openSettings}/>)}
+     <div className="privacy-note"><Icon name="key" size={16}/><p>Города и ключ сохраняются в этом браузере. Для свежей погоды нужен интернет.</p><span>ХРАНИТСЯ В ВАШЕМ БРАУЗЕРЕ</span></div>
    </main>
    <footer><span>OpenWeatherWeb <span className="footer-dot">/</span> React + TypeScript</span><a href="https://openweathermap.org/" target="_blank" rel="noreferrer">Данные OpenWeather ↗</a></footer>
-   <dialog ref={dialog} onCancel={() => { setDraftKey(''); setSettings(false) }} onClose={() => { setDraftKey(''); setSettings(false) }}><form onSubmit={saveKey}><div className="dialog-top"><span className="key-emblem"><Icon name="key" size={26}/></span><button type="button" className="icon-button" aria-label="Закрыть" onClick={() => { setDraftKey(''); setSettings(false) }}><Icon name="close"/></button></div><div className="eyebrow">ЛИЧНОЕ ПОДКЛЮЧЕНИЕ</div><h2>Ваш доступ к погоде</h2><p>Введите API-ключ OpenWeather. Он сохраняется в localStorage этого браузера и отправляется только OpenWeather по HTTPS.</p><label className="field-label" htmlFor="api-key">API-ключ</label><input id="api-key" type="password" value={draftKey} onChange={e => setDraftKey(e.target.value)} autoComplete="off" spellCheck={false} required placeholder="Вставьте личный ключ"/><small className="dialog-help">Ключ будет доступен после перезапуска SPA и PWA. Он хранится без шифрования; используйте только доверенное устройство.</small>{storageError && <p className="message error" role="alert">{storageError}</p>}<button className="primary dialog-submit">Подключить <Icon name="arrow" size={18}/></button><div className="dialog-links"><a href="https://home.openweathermap.org/api_keys" target="_blank" rel="noreferrer">Где взять ключ? ↗</a>{key && <button type="button" className="text-button" onClick={forgetKey}>Удалить сохранённый ключ</button>}</div></form></dialog>
+   <dialog ref={searchDialog} className="search-dialog" aria-labelledby="search-title" onCancel={closeSearch} onClose={closeSearch}>
+     <div className="dialog-top"><span className="eyebrow">НОВОЕ МЕСТО</span><button className="icon-button" aria-label="Закрыть поиск" onClick={closeSearch}><Icon name="close"/></button></div>
+     <h2 id="search-title">Добавить город</h2><p>Найдите город и выберите нужное место из списка.</p>
+     <form className="search-form" onSubmit={search}><label htmlFor="city" className="search-label"><Icon name="search"/><span className="sr-only">Название города</span></label><input id="city" value={query} onChange={event => { setQuery(event.target.value); controller.current?.abort(); ++requestId.current; setBusy(false); setResults([]); setError('') }} placeholder="Город, например Рига" maxLength={120} autoComplete="off" autoFocus required/><button className="primary" disabled={busy}>{busy ? 'Поиск…' : 'Найти'}</button></form>
+     <div aria-live="polite">{error && <div className="message error" role="alert">{error}</div>}{busy && <p>Ищем города…</p>}</div>
+     {results.length > 0 && <div className="city-results"><p>Выберите город, чтобы сохранить его.</p><div className="city-grid">{results.map((city, index) => <button key={cityId(city) + ':' + index} onClick={() => addCity(city)}><Icon name="pin"/><span><strong>{cityName(city)}</strong><small>{[city.state, city.country].filter(Boolean).join(', ')} · {city.lat.toFixed(2)}°, {city.lon.toFixed(2)}°</small></span><Icon name="arrow" size={18}/></button>)}</div></div>}
+   </dialog>
+   <dialog ref={removalDialog} aria-labelledby="remove-title" onCancel={() => setPendingRemoval(null)} onClose={() => setPendingRemoval(null)}><h2 id="remove-title">Удалить город?</h2><p>«{pendingRemoval ? cityName(pendingRemoval) : ''}» будет удалён из сохранённых городов. Вы сможете добавить его снова.</p><div className="removal-actions"><button className="outline-button" onClick={() => setPendingRemoval(null)}>Отмена</button><button className="primary" onClick={removeCity}>Удалить город</button></div></dialog>
+   <dialog aria-labelledby="key-title" ref={keyDialog} onCancel={() => { setDraftKey(''); setSettings(false) }} onClose={() => { setDraftKey(''); setSettings(false) }}><form onSubmit={saveKey}><div className="dialog-top"><span className="key-emblem"><Icon name="key" size={26}/></span><button type="button" className="icon-button" aria-label="Закрыть" onClick={() => { setDraftKey(''); setSettings(false) }}><Icon name="close"/></button></div><div className="eyebrow">ЛИЧНОЕ ПОДКЛЮЧЕНИЕ</div><h2 id="key-title">Ваш доступ к погоде</h2><p>Введите API-ключ OpenWeather. Он сохраняется в localStorage этого браузера и отправляется только OpenWeather по HTTPS.</p><label className="field-label" htmlFor="api-key">API-ключ</label><input id="api-key" type="password" value={draftKey} onChange={e => setDraftKey(e.target.value)} autoComplete="off" spellCheck={false} required placeholder="Вставьте личный ключ"/><small className="dialog-help">Ключ будет доступен после перезапуска SPA и PWA. Он хранится без шифрования; используйте только доверенное устройство.</small>{storageError && <p className="message error" role="alert">{storageError}</p>}<button className="primary dialog-submit">Подключить <Icon name="arrow" size={18}/></button><div className="dialog-links"><a href="https://home.openweathermap.org/api_keys" target="_blank" rel="noreferrer">Где взять ключ? ↗</a>{key && <button type="button" className="text-button" onClick={forgetKey}>Удалить сохранённый ключ</button>}</div></form></dialog>
  </div>
 }
